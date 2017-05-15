@@ -12,8 +12,6 @@ $('head').append($link);
 
 (function($) {
 
-	Config.version = '0.10.2';
-
 	Config.sockjsprefix = '/showdown';
 	Config.root = '/';
 
@@ -222,13 +220,30 @@ $('head').append($link);
 		 *   `login:noresponse`
 		 *     triggered if the login server did not return a response
 		 */
-		finishRename: function(name, assertion) {
+		finishRename: function (name, assertion) {
+			if (assertion.slice(0, 14) === '<!DOCTYPE html') {
+				// some sort of MitM proxy; ignore it
+				var endIndex = assertion.indexOf('>');
+				if (endIndex > 0) assertion = assertion.slice(endIndex + 1);
+			}
+			if (assertion.charAt(0) === '\r') assertion = assertion.slice(1);
+			if (assertion.charAt(0) === '\n') assertion = assertion.slice(1);
+			if (assertion.indexOf('<') >= 0) {
+				if (assertion.indexOf('accessdenied') >= 0) {
+					app.addPopupMessage("Your internet filter is blocking Pokémon Showdown.");
+					return;
+				}
+				app.addPopupMessage("Something is interfering with our connection to the login server.");
+				// send to server anyway in case server knows how to deal with it
+				app.send('/trn ' + name + ',0,' + assertion);
+				return;
+			}
 			if (assertion === ';') {
 				this.trigger('login:authrequired', name);
 			} else if (assertion.substr(0, 2) === ';;') {
 				this.trigger('login:invalidname', name, assertion.substr(2));
-			} else if (assertion.indexOf('\n') >= 0) {
-				this.trigger('login:noresponse');
+			} else if (assertion.indexOf('\n') >= 0 || !assertion) {
+				app.addPopupMessage("Something is interfering with our connection to the login server.");
 			} else {
 				app.send('/trn ' + name + ',0,' + assertion);
 			}
@@ -357,27 +372,35 @@ $('head').append($link);
 			this.topbar = new Topbar({el: $('#header')});
 			if (this.down) {
 				this.isDisconnected = true;
-			} else if ($(window).width() >= 916) {
+			} else {
 				if (document.location.hostname === 'play.pokemonshowdown.com' || Config.testclient) {
 					this.addRoom('rooms', null, true);
-					Storage.whenPrefsLoaded(function () {
-						var autojoin = (Tools.prefs('autojoin') || '');
-						var autojoinIds = [];
-						if (autojoin) {
-							var autojoins = autojoin.split(',');
-							var roomid;
-							for (var i = 0; i < autojoins.length; i++) {
-								roomid = toRoomid(autojoins[i]);
-								app.addRoom(roomid, null, true, autojoins[i]);
-								if (roomid !== 'staff' && roomid !== 'upperstaff') autojoinIds.push(roomid);
-							}
-						}
-						app.send('/autojoin ' + autojoinIds.join(','));
-					});
 				} else {
 					this.addRoom('lobby', null, true);
-					this.send('/autojoin');
 				}
+				Storage.whenPrefsLoaded(function () {
+					if (!Config.server.registered) return app.send('/autojoin');
+					var autojoin = (Tools.prefs('autojoin') || '');
+					var autojoinIds = [];
+					if (typeof autojoin === 'string') {
+						// Use the existing autojoin string for showdown, and an empty string for other servers.
+						if (Config.server.id !== 'showdown') autojoin = '';
+					} else {
+						// If there is not autojoin data for this server, use a empty string.
+						autojoin = autojoin[Config.server.id] || '';
+					}
+					if (autojoin) {
+						var autojoins = autojoin.split(',');
+						for (var i = 0; i < autojoins.length; i++) {
+							var roomid = toRoomid(autojoins[i]);
+							app.addRoom(roomid, null, true, autojoins[i]);
+							if (roomid === 'staff' || roomid === 'upperstaff') continue;
+							if (Config.server.id !== 'showdown' && roomid === 'lobby') continue;
+							autojoinIds.push(roomid);
+						}
+					}
+					app.send('/autojoin ' + autojoinIds.join(','));
+				});
 			}
 
 			var self = this;
@@ -498,7 +521,23 @@ $('head').append($link);
 
 				// keypress happened in an empty textarea or a button
 				var safeLocation = ((tagName === 'TEXTAREA' && !el.value.length) || tagName === 'BUTTON');
+				var isMac = (navigator.userAgent.indexOf("Mac") !== -1);
 
+				if (e.keyCode === 70 && window.nodewebkit && (isMac ? e.metaKey : e.ctrlKey)) {
+					e.preventDefault();
+					e.stopImmediatePropagation();
+					var query = window.getSelection().toString();
+					query = window.prompt("find?", query);
+					if (query) window.find(query);
+					return;
+				}
+				if (e.keyCode === 71 && window.nodewebkit && (isMac ? e.metaKey : e.ctrlKey)) {
+					e.preventDefault();
+					e.stopImmediatePropagation();
+					var query = window.getSelection().toString();
+					if (query) window.find(query);
+					return;
+				}
 				if (app.curSideRoom && $(e.target).closest(app.curSideRoom.$el).length) {
 					// keypress happened in sideroom
 					if (e.shiftKey && e.keyCode === 37 && safeLocation) {
@@ -792,9 +831,8 @@ $('head').append($link);
 		connect: function() {
 			if (this.down) return;
 
-			var bannedHosts = ['cool.jit.su'];
-			if (Config.server.banned || bannedHosts.indexOf(Config.server.host) >= 0) {
-				this.addPopupMessage("This server has been deleted for breaking US laws or impersonating PS global staff.");
+			if (Config.server.banned || (Config.bannedHosts && Config.bannedHosts.indexOf(Config.server.host) >= 0)) {
+				this.addPopupMessage("This server has been deleted for breaking US laws, impersonating PS global staff, or other major rulebreaking.");
 				return;
 			}
 
@@ -842,11 +880,7 @@ $('head').append($link);
 				if (window.console && console.log) {
 					console.log('<< '+msg.data);
 				}
-				if (msg.data.charAt(0) !== '{') {
-					self.receive(msg.data);
-					return;
-				}
-				alert("This server is using an outdated version of Pokémon Showdown and needs to be updated.");
+				self.receive(msg.data);
 			};
 			var reconstructSocket = function(socket) {
 				var s = constructSocket();
@@ -1121,9 +1155,15 @@ $('head').append($link);
 				break;
 
 			case 'pm':
-				var message = parts.slice(3).join('|');
-
-				this.rooms[''].addPM(parts[1], message, parts[2]);
+				var dataLines = data.split('\n');
+				for (var i = 0; i < dataLines.length; i++) {
+					parts = dataLines[i].slice(1).split('|');
+					var message = parts.slice(3).join('|');
+					this.rooms[''].addPM(parts[1], message, parts[2]);
+					if (toUserid(parts[1]) !== app.user.get('userid')) {
+						app.user.lastPM = toUserid(parts[1]);
+					}
+				}
 				break;
 
 			case 'roomerror':
@@ -1212,17 +1252,25 @@ $('head').append($link);
 					var id = toId(name);
 					var isTeambuilderFormat = !team && name.slice(-11) !== 'Custom Game';
 					var teambuilderFormat = '';
+					var teambuilderFormatName = '';
 					if (isTeambuilderFormat) {
-						var parenPos = name.indexOf('(');
-						if (parenPos > 0 && name.charAt(name.length-1) === ')') {
+						teambuilderFormatName = name;
+						if (id.slice(0, 3) !== 'gen') {
+							teambuilderFormatName = '[Gen 6] ' + name;
+						}
+						var parenPos = teambuilderFormatName.indexOf('(');
+						if (parenPos > 0 && name.slice(-1) === ')') {
 							// variation of existing tier
-							teambuilderFormat = toId(name.substr(0, parenPos));
+							teambuilderFormatName = $.trim(teambuilderFormatName.slice(0, parenPos));
+						}
+						if (teambuilderFormatName !== name) {
+							teambuilderFormat = toId(teambuilderFormatName);
 							if (BattleFormats[teambuilderFormat]) {
 								BattleFormats[teambuilderFormat].isTeambuilderFormat = true;
 							} else {
 								BattleFormats[teambuilderFormat] = {
 									id: teambuilderFormat,
-									name: $.trim(name.substr(0, parenPos)),
+									name: teambuilderFormatName,
 									team: team,
 									section: section,
 									column: column,
@@ -1237,6 +1285,8 @@ $('head').append($link);
 					if (BattleFormats[id] && BattleFormats[id].isTeambuilderFormat) {
 						isTeambuilderFormat = true;
 					}
+					// make sure formats aren't out-of-order
+					if (BattleFormats[id]) delete BattleFormats[id];
 					BattleFormats[id] = {
 						id: id,
 						name: name,
@@ -1263,10 +1313,8 @@ $('head').append($link);
 					// The base format is not available.
 					if (teambuilderFormat.battleFormat) {
 						multivariantFormats[teambuilderFormat.id] = 1;
-						teambuilderFormat.hasBattleFormat = false;
 						teambuilderFormat.battleFormat = '';
 					} else {
-						teambuilderFormat.hasBattleFormat = true;
 						teambuilderFormat.battleFormat = id;
 					}
 				}
@@ -1315,7 +1363,7 @@ $('head').append($link);
 				if (this.host === 'play.pokemonshowdown.com' || this.host === 'psim.us' || this.host === location.host) {
 					if (!e.cmdKey && !e.metaKey && !e.ctrlKey) {
 						var target = this.pathname.substr(1);
-						var shortLinks = /^(appeals?|rooms?suggestions?|suggestions?|adminrequests?|bugs?|bugreports?|rules?)$/;
+						var shortLinks = /^(appeals?|rooms?suggestions?|suggestions?|adminrequests?|bugs?|bugreports?|rules?|faq|credits?|news|privacy|contact|dex)$/;
 						if (target.indexOf('/') < 0 && target.indexOf('.') < 0 && !shortLinks.test(target)) {
 							window.app.tryJoinRoom(target);
 							e.preventDefault();
@@ -1465,8 +1513,13 @@ $('head').append($link);
 				if (this.curSideRoom === oldRoom) this.curSideRoom = room;
 				if (this.sideRoom === oldRoom) this.sideRoom = room;
 			}
-			if (type === BattleRoom) this.roomList.push(room);
-			if (type === ChatRoom || type === BattlesRoom) this.sideRoomList.push(room);
+			if (['', 'teambuilder', 'ladder', 'rooms'].indexOf(room.id) < 0) {
+				if (room.isSideRoom) {
+					this.sideRoomList.push(room);
+				} else {
+					this.roomList.push(room);
+				}
+			}
 			return room;
 		},
 		focusRoom: function(id) {
@@ -1788,7 +1841,7 @@ $('head').append($link);
 			document.title = room.title ? room.title + " - Showdown!" : "Showdown!";
 		},
 		updateAutojoin: function () {
-			if (Config.server.id !== 'showdown') return;
+			if (!Config.server.registered) return;
 			var autojoins = [];
 			var autojoinCount = 0;
 			var rooms = this.roomList.concat(this.sideRoomList);
@@ -1796,11 +1849,38 @@ $('head').append($link);
 				var room = rooms[i];
 				if (room.type !== 'chat') continue;
 				autojoins.push(room.id.indexOf('-') >= 0 ? room.id : (room.title || room.id));
-				if (room.id === 'staff' || room.id === 'upperstaff') continue;
+				if (room.id === 'staff' || room.id === 'upperstaff' || (Config.server.id !== 'showdown' && room.id === 'lobby')) continue;
 				autojoinCount++;
 				if (autojoinCount >= 10) break;
 			}
-			Tools.prefs('autojoin', autojoins.join(','));
+			var curAutojoin = (Tools.prefs('autojoin') || '');
+			if (typeof curAutojoin !== 'string') {
+				if (curAutojoin[Config.server.id] === autojoins.join(',')) return;
+				if (!autojoins.length) {
+					delete curAutojoin[Config.server.id];
+					// If the only key left is 'showdown', revert to the string method for storing autojoin.
+					var hasSideServer = false;
+					for (var key in curAutojoin) {
+						if (key === 'showdown') continue;
+						hasSideServer = true;
+						break;
+					}
+					if (!hasSideServer) curAutojoin = curAutojoin.showdown || '';
+				} else {
+					curAutojoin[Config.server.id] = autojoins.join(',');
+				}
+			} else {
+				if (Config.server.id !== 'showdown') {
+					// Switch to the autojoin object to handle multiple servers
+					curAutojoin = {showdown: curAutojoin};
+					if (!autojoins.length) return;
+					curAutojoin[Config.server.id] = autojoins.join(',');
+				} else {
+					if (curAutojoin === autojoins.join(',')) return;
+					curAutojoin = autojoins.join(',');
+				}
+			}
+			Tools.prefs('autojoin', curAutojoin);
 		},
 
 		/*********************************************************
@@ -1835,6 +1915,7 @@ $('head').append($link);
 			if (!type) type = Popup;
 
 			var popup = new type(data);
+			popup.lastFocusedEl = document.activeElement;
 
 			var $overlay;
 			if (popup.type === 'normal') {
@@ -1869,6 +1950,7 @@ $('head').append($link);
 		closePopup: function(id) {
 			if (this.popups.length) {
 				var popup = this.popups.pop();
+				if (popup.lastFocusedEl && popup.lastFocusedEl.focus) popup.lastFocusedEl.focus();
 				popup.remove();
 				if (this.reconnectPending) this.addPopup(ReconnectPopup, {message: this.reconnectPending});
 				return true;
@@ -2523,6 +2605,7 @@ $('head').append($link);
 				'@': "Moderator (@)",
 				'%': "Driver (%)",
 				'*': "Bot (*)",
+				'\u2606': "Player (\u2606)",
 				'\u2605': "Player (\u2605)",
 				'+': "Voice (+)",
 				' ': "",
@@ -2555,12 +2638,16 @@ $('head').append($link);
 				var privatebuf = '';
 				for (var i in data.rooms) {
 					if (i === 'global') continue;
+					var roomrank = '';
+					if (!/[A-Za-z0-9]/.test(i.charAt(0))) {
+						roomrank = '<small style="color: #888; font-size: 100%">' + i.charAt(0) + '</small>';
+					}
 					var roomid = toRoomid(i);
 					if (roomid.substr(0,7) === 'battle-') {
 						var p1 = data.rooms[i].p1.substr(1);
 						var p2 = data.rooms[i].p2.substr(1);
 						var ownBattle = (ownUserid === toUserid(p1) || ownUserid === toUserid(p2));
-						var room = '<span title="' + (Tools.escapeHTML(p1) || '?') + ' v. ' + (Tools.escapeHTML(p2) || '?') + '"><a href="' + app.root + roomid + '" class="ilink' + ((ownBattle || app.rooms[i]) ? ' yours' : '') + '">' + roomid.substr(7) + '</a></span>';
+						var room = '<span title="' + (Tools.escapeHTML(p1) || '?') + ' v. ' + (Tools.escapeHTML(p2) || '?') + '">' + '<a href="' + app.root + roomid + '" class="ilink' + ((ownBattle || app.rooms[i]) ? ' yours' : '') + '">' + roomrank + roomid.substr(7) + '</a></span>';
 						if (data.rooms[i].isPrivate) {
 							if (!privatebuf) privatebuf = '<br /><em>Private rooms:</em> ';
 							else privatebuf += ', ';
@@ -2571,7 +2658,7 @@ $('head').append($link);
 							battlebuf += room;
 						}
 					} else {
-						var room = '<a href="' + app.root + roomid + '" class="ilink' + (app.rooms[i] ? ' yours' : '') + '">' + roomid + '</a>';
+						var room = '<a href="' + app.root + roomid + '" class="ilink' + (app.rooms[i] ? ' yours' : '') + '">' + roomrank + roomid + '</a>';
 						if (data.rooms[i].isPrivate) {
 							if (!privatebuf) privatebuf = '<br /><em>Private rooms:</em> ';
 							else privatebuf += ', ';
@@ -2726,15 +2813,14 @@ $('head').append($link);
 		initialize: function(data) {
 			var buf = '';
 			buf = '<p>Your replay has been uploaded! It\'s available at:</p>';
-			buf += '<p><a href="http://replay.pokemonshowdown.com/'+data.id+'" target="_blank">http://replay.pokemonshowdown.com/'+data.id+'</a></p>';
-			buf += '<p><button type="submit" class="autofocus"><strong>Open</strong></button> <button name="close">Cancel</button></p>';
+			buf += '<p><a href="http://replay.pokemonshowdown.com/' + data.id + '" target="_blank">http://replay.pokemonshowdown.com/' + data.id + '</a></p>';
+			buf += '<p><button type="submit" class="autofocus">Close</button></p>';
 			this.$el.html(buf).css('max-width', 620);
 		},
 		clickClose: function() {
 			this.close();
 		},
-		submit: function(i) {
-			app.openInNewWindow('http://replay.pokemonshowdown.com/'+this.id);
+		submit: function (i) {
 			this.close();
 		}
 	});

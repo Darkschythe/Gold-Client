@@ -10,6 +10,12 @@ if (!window.exports) window.exports = window;
 if (window.soundManager) {
 	soundManager.setup({url:'https://play.pokemonshowdown.com/swf/'});
 	if (window.Replays) soundManager.onready(window.Replays.soundReady);
+	soundManager.onready(function () {
+		soundManager.createSound({
+			id: 'notif',
+			url: 'https://play.pokemonshowdown.com/audio/notification.wav'
+		});
+	});
 }
 
 window.nodewebkit = false;
@@ -262,48 +268,55 @@ var BattleStatNames = { // proper style
 	spe: 'Spe'
 };
 
-var baseSpeciesChart = {
-	'pikachu': 1,
-	'pichu': 1,
-	'unown': 1,
-	'castform': 1,
-	'deoxys': 1,
-	'burmy': 1,
-	'wormadam': 1,
-	'cherrim': 1,
-	'shellos': 1,
-	'gastrodon': 1,
-	'rotom': 1,
-	'giratina': 1,
-	'shaymin': 1,
-	'arceus': 1,
-	'basculin': 1,
-	'darmanitan': 1,
-	'deerling': 1,
-	'sawsbuck': 1,
-	'tornadus': 1,
-	'thundurus': 1,
-	'landorus': 1,
-	'kyurem': 1,
-	'keldeo': 1,
-	'meloetta': 1,
-	'genesect': 1,
-	'vivillon': 1,
-	'flabebe': 1,
-	'floette': 1,
-	'florges': 1,
-	'furfrou': 1,
-	'aegislash': 1,
-	'pumpkaboo': 1,
-	'gourgeist': 1,
-	'meowstic': 1,
-	'hoopa': 1,
+var baseSpeciesChart = [
+	'pikachu',
+	'pichu',
+	'unown',
+	'castform',
+	'deoxys',
+	'burmy',
+	'wormadam',
+	'cherrim',
+	'shellos',
+	'gastrodon',
+	'rotom',
+	'giratina',
+	'shaymin',
+	'arceus',
+	'basculin',
+	'darmanitan',
+	'deerling',
+	'sawsbuck',
+	'tornadus',
+	'thundurus',
+	'landorus',
+	'kyurem',
+	'keldeo',
+	'meloetta',
+	'genesect',
+	'vivillon',
+	'flabebe',
+	'floette',
+	'florges',
+	'furfrou',
+	'aegislash',
+	'pumpkaboo',
+	'gourgeist',
+	'meowstic',
+	'hoopa',
+	'zygarde',
+	'wishiwashi',
+	'minior',
+	'mimikyu',
+	'greninja',
+	'oricorio',
+	'silvally',
 
 	// mega evolutions
-	'charizard': 1,
-	'mewtwo': 1
+	'charizard',
+	'mewtwo'
 	// others are hardcoded by ending with 'mega'
-};
+];
 
 // Precompile often used regular expression for links.
 var domainRegex = '[a-z0-9\\-]+(?:[.][a-z0-9\\-]+)*';
@@ -324,13 +337,13 @@ var linkRegex = new RegExp(
 			'/' +
 			'(?:' +
 				'(?:' +
-					'[^\\s()&]|&amp;|&quot;' +
+					'[^\\s()&<>]|&amp;|&quot;' +
 					'|' + parenthesisRegex +
 				')*' +
 				// URLs usually don't end with punctuation, so don't allow
 				// punctuation symbols that probably aren't related to URL.
 				'(?:' +
-					'[^\\s`()\\[\\]{}\'".,!?;:&]' +
+					'[^\\s`()\\[\\]{}\'".,!?;:&<>]' +
 					'|' + parenthesisRegex +
 				')' +
 			')?' +
@@ -457,6 +470,8 @@ var Tools = {
 			];
 		case 'announce':
 			return '<div class="chat chatmessage-' + toId(name) + hlClass + mineClass + '">' + timestamp + '<strong style="' + color + '">' + clickableName + ':</strong> <span class="message-announce">' + Tools.parseMessage(target) + '</span></div>';
+		case 'log':
+			return '<div class="chat chatmessage-' + toId(name) + hlClass + mineClass + '">' + timestamp + '<span class="message-log">' + Tools.parseMessage(target) + '</span></div>';
 		case 'data-pokemon':
 			var buf = '<li class="result">';
 			var template = Tools.getTemplate(target);
@@ -471,22 +486,17 @@ var Tools = {
 			buf += '</span> ';
 			buf += '<span style="float:left;min-height:26px">';
 			if (template.abilities['1']) {
-				buf += '<span class="col twoabilitycol">';
+				buf += '<span class="col twoabilitycol">' + template.abilities['0'] + '<br />' + template.abilities['1'] + '</span>';
 			} else {
-				buf += '<span class="col abilitycol">';
+				buf += '<span class="col abilitycol">' + template.abilities['0'] + '</span>';
 			}
-			for (var i in template.abilities) {
-				var ability = template.abilities[i];
-				if (!ability) continue;
-
-				if (i === '1') buf += '<br />';
-				if (i == 'H') {
-					ability = '</span><span class="col abilitycol"><em>' + (template.unreleasedHidden ? '<s>' + ability + '</s>' : ability) + '</em>';
-				}
-				buf += ability;
+			if (template.abilities['S']) {
+				buf += '<span class="col twoabilitycol' + (template.unreleasedHidden ? ' unreleasedhacol' : '') + '"><em>' + template.abilities['H'] + '<br />' + template.abilities['S'] + '</em></span>';
+			} else if (template.abilities['H']) {
+				buf += '<span class="col abilitycol' + (template.unreleasedHidden ? ' unreleasedhacol' : '') + '"><em>' + template.abilities['H'] + '</em></span>';
+			} else {
+				buf += '<span class="col abilitycol"></span>';
 			}
-			if (!template.abilities['H']) buf += '</span><span class="col abilitycol">';
-			buf += '</span>';
 			buf += '</span>';
 			buf += '<span style="float:left;min-height:26px">';
 			buf += '<span class="col statcol"><em>HP</em><br />' + template.baseStats.hp + '</span> ';
@@ -551,6 +561,9 @@ var Tools = {
 		// ^^superscript^^
 		str = str.replace(/\^\^([^< ](?:[^<]*?[^< ])??)\^\^/g,
 			options.hidesuperscript ? '$1' : '<sup>$1</sup>');
+		// \\subscript\\
+		str = str.replace(/\\\\([^< ](?:[^<]*?[^< ])??)\\\\/g,
+			options.hidesubscript ? '$1' : '<sub>$1</sub>');
 		// <<roomid>>
 		str = str.replace(/&lt;&lt;([a-z0-9-]+)&gt;&gt;/g,
 			options.hidelinks ? '&laquo;$1&raquo;' : '&laquo;<a href="/$1" target="_blank">$1</a>&raquo;');
@@ -593,20 +606,6 @@ var Tools = {
 				return '<a href="' + fulluri +
 					'" target="_blank" onclick="' + onclick + '" rel="noopener">' + uri + '</a>';
 			});
-			// google [blah]
-			//   Google search for 'blah'
-			str = str.replace(/\bgoogle ?\[([^\]<]+)\]/ig, function (p0, p1) {
-				p1 = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
-				return '<a href="http://www.google.com/search?ie=UTF-8&q=' + p1 +
-					'" target="_blank">' + p0 + '</a>';
-			});
-			// wiki [blah]
-			//   Search Wikipedia for 'blah' (and visit the article for 'blah' if it exists)
-			str = str.replace(/\bwiki ?\[([^\]<]+)\]/ig, function (p0, p1) {
-				p1 = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
-				return '<a href="http://en.wikipedia.org/w/index.php?title=Special:Search&search=' +
-					p1 + '" target="_blank">' + p0 + '</a>';
-			});
 			// server issue #pullreq
 			//   Links to github Pokemon Showdown server pullreq number
 			str = str.replace(/\bserver issue ?#(\d+)/ig, function (p0, p1) {
@@ -622,11 +621,22 @@ var Tools = {
 					p1 + '" target="_blank">' + p0 + '</a>';
 			});
 			// [[blah]]
-			//   Short form of gl[blah]
-			str = str.replace(/\[\[([^< ](?:[^<`]*?[^< ])??)\]\]/g, function (p0, p1) {
-				var q = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(p1)));
-				return '<a href="http://www.google.com/search?ie=UTF-8&btnI&q=' + q +
-					'" target="_blank">' + p1 + '</a>';
+			str = str.replace(/\[\[(?![< ])(?:(?:(youtube|yt|wiki)\: ?)?([^<`]*?[^< ])?)\]\]/g, function (match, p1, p2) {
+				if (match === '[[]]') {
+					return (p1 ? p1 : '') + match + (p2 ? p2 : '');
+				}
+				var query = p2;
+				if (p1 === 'wiki') {
+					query = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(query)));
+					return '<a href="http://en.wikipedia.org/w/index.php?title=Special:Search&search=' +
+						query + '" target="_blank">' + p1 + ": " + p2 + '</a>';
+				} else if (p1) {
+					p2 = "yt: " + p2;
+					query += " site:youtube.com";
+				}
+				query = Tools.escapeHTML(encodeURIComponent(Tools.unescapeHTML(query)));
+				return '<a href="http://www.google.com/search?ie=UTF-8&btnI&q=' + query +
+					'" target="_blank">' + p2 + '</a>';
 			});
 		}
 
@@ -1003,18 +1013,22 @@ var Tools = {
 			if (!window.BattlePokedex) window.BattlePokedex = {};
 			if (!window.BattlePokedex[id]) {
 				template = window.BattlePokedex[id] = {};
-				for (var k in baseSpeciesChart) {
-					if (id.length > k.length && id.substr(0, k.length) === k) {
-						template.baseSpecies = k;
-						template.forme = id.substr(k.length);
+				for (var i = 0; i < baseSpeciesChart.length; i++) {
+					var baseid = baseSpeciesChart[i];
+					if (id.length > baseid.length && id.substr(0, baseid.length) === baseid) {
+						template.baseSpecies = baseid;
+						template.forme = id.substr(baseid.length);
 					}
 				}
-				if (id !== 'yanmega' && id.substr(id.length - 4) === 'mega') {
-					template.baseSpecies = id.substr(0, id.length - 4);
-					template.forme = id.substr(id.length - 4);
-				} else if (id.substr(id.length - 6) === 'primal') {
-					template.baseSpecies = id.substr(0, id.length - 6);
-					template.forme = id.substr(id.length - 6);
+				if (id !== 'yanmega' && id.slice(-4) === 'mega') {
+					template.baseSpecies = id.slice(0, -4);
+					template.forme = id.slice(-4);
+				} else if (id.slice(-6) === 'primal') {
+					template.baseSpecies = id.slice(0, -6);
+					template.forme = id.slice(-6);
+				} else if (id.slice(-5) === 'alola') {
+					template.baseSpecies = id.slice(0, -5);
+					template.forme = id.slice(-5);
 				}
 				template.exists = false;
 			}
@@ -1032,22 +1046,24 @@ var Tools = {
 				var formeid = '';
 				if (template.baseSpecies !== name) {
 					formeid = '-' + toId(template.forme);
-					if (formeid === '-megax') formeid = '-mega-x';
-					if (formeid === '-megay') formeid = '-mega-y';
 				}
 				template.formeid = formeid;
 			}
 			if (!template.spriteid) template.spriteid = toId(template.baseSpecies) + template.formeid;
 			if (!template.effectType) template.effectType = 'Template';
 			if (!template.gen) {
-				if (template.forme && template.forme in {'Mega':1, 'Mega-X':1, 'Mega-Y':1}) {
+				if (template.forme && template.formeid in {'-mega':1, '-megax':1, '-megay':1}) {
 					template.gen = 6;
 					template.isMega = true;
 					template.battleOnly = true;
-				} else if (template.forme === 'Primal') {
+				} else if (template.formeid === '-primal') {
 					template.gen = 6;
 					template.isPrimal = true;
 					template.battleOnly = true;
+				} else if (template.formeid === '-alola') {
+					template.gen = 7;
+				} else if (template.num >= 722) {
+					template.gen = 7;
 				} else if (template.num >= 650) {
 					template.gen = 6;
 				} else if (template.num >= 494) {
@@ -1118,12 +1134,13 @@ var Tools = {
 			w: 96,
 			h: 96,
 			url: Tools.resourcePrefix + 'sprites/',
+			pixelated: true,
 			isBackSprite: false,
 			cryurl: '',
 			shiny: pokemon.shiny
 		};
 		var name = pokemon.spriteid;
-		var dir, isBack, facing;
+		var dir, facing;
 		if (siden) {
 			dir = '';
 			facing = 'front';
@@ -1134,30 +1151,39 @@ var Tools = {
 		}
 
 		// Decide what gen sprites to use.
-		var gen = {1:'rby', 2:'gsc', 3:'rse', 4:'dpp', 5:'bw', 6:'xy'}[Math.max(options.gen, pokemon.gen)];
-		if (Tools.prefs('nopastgens')) gen = 'xy';
-		if (Tools.prefs('bwgfx') && gen === 'xy') gen = 'bw';
-
-		var gen6animationData = null;
-		if (window.BattlePokemonSprites) {
-			gen6animationData = BattlePokemonSprites[pokemon.speciesid];
+		var genNum = Math.max(options.gen, pokemon.gen);
+		if (Tools.prefs('nopastgens')) genNum = 6;
+		if (Tools.prefs('bwgfx') && genNum >= 6) genNum = 5;
+		if (genNum < 5) {
+			if (!spriteData.isBackSprite) {
+				spriteData.w *= 2;
+				spriteData.h *= 2;
+				spriteData.y = -16;
+			} else {
+				spriteData.w *= 2 / 1.5;
+				spriteData.h *= 2 / 1.5;
+				spriteData.y = -11;
+			}
+			if (genNum <= 2) spriteData.y += 2;
 		}
-		var animationData = gen6animationData;
+		var gen = {1:'rby', 2:'gsc', 3:'rse', 4:'dpp', 5:'bw', 6:'xy', 7:'xy'}[genNum];
+
+		var animationData = null;
+		if (window.BattlePokemonSprites) {
+			animationData = BattlePokemonSprites[pokemon.speciesid];
+		}
 		if (gen === 'bw' && window.BattlePokemonSpritesBW) {
 			animationData = BattlePokemonSpritesBW[pokemon.speciesid];
 		}
-		if (!gen6animationData) gen6animationData = {};
 		if (!animationData) animationData = {};
 
-		if (typeof animationData.num !== 'undefined') {
-			var num = '' + animationData.num;
-			if (num.length < 3) num = '0' + num;
-			if (num.length < 3) num = '0' + num;
-			spriteData.cryurl = 'audio/cries/' + num;
-			if (pokemon.isMega || pokemon.forme && (pokemon.forme === 'Sky' || pokemon.forme === 'Therian' || pokemon.forme === 'Black' || pokemon.forme === 'White' || pokemon.forme === 'Super')) {
-				spriteData.cryurl += pokemon.formeid;
+		if (animationData.num > 0) {
+			spriteData.cryurl = 'audio/cries/' + toId(pokemon.baseSpecies);
+			var formeid = pokemon.formeid;
+			if (pokemon.isMega || formeid && (formeid === '-sky' || formeid === '-therian' || formeid === '-primal' || formeid === '-eternal' || pokemon.baseSpecies === 'Kyurem' || formeid === '-super' || formeid === '-unbound' || formeid === '-midnight' || formeid === '-school' || pokemon.baseSpecies === 'Oricorio' || pokemon.baseSpecies === 'Zygarde')) {
+				spriteData.cryurl += formeid;
 			}
-			spriteData.cryurl += '.wav';
+			spriteData.cryurl += (window.nodewebkit ? '.ogg' : '.mp3');
 		}
 
 		if (pokemon.shiny && options.gen > 1) dir += '-shiny';
@@ -1169,24 +1195,25 @@ var Tools = {
 			return spriteData;
 		}
 
-		if (animationData[facing]) {
-			var spriteType = '';
-			if (animationData[facing]['anif'] && pokemon.gender === 'F') {
-				name += '-f';
-				spriteType += 'f';
-			}
-			if (!Tools.prefs('noanim') && gen in {'bw': 1, 'xy': 1}) {
-				spriteType = 'ani' + spriteType;
-				dir = gen + 'ani' + dir;
+		// Gender differences don't exist prior to Gen 4
+		if (genNum >= 4) {
+			if (animationData[facing]) {
+				if (animationData[facing + 'f'] && pokemon.gender === 'F') {
+					name += '-f';
+					facing += 'f';
+				}
+				if (!Tools.prefs('noanim') && genNum >= 5) {
+					dir = gen + 'ani' + dir;
 
-				spriteData.w = animationData[facing][spriteType].w;
-				spriteData.h = animationData[facing][spriteType].h;
-				spriteData.url += dir + '/' + name + '.gif';
-				return spriteData;
+					spriteData.w = animationData[facing].w;
+					spriteData.h = animationData[facing].h;
+					spriteData.url += dir + '/' + name + '.gif';
+					if (genNum >= 6) spriteData.pixelated = false;
+					return spriteData;
+				}
+			} else if (animationData['frontf'] && pokemon.gender === 'F') {
+				name += '-f';
 			}
-		} else if (gen6animationData[facing] && gen6animationData[facing]['anif'] && pokemon.gender === 'F') {
-			name += '-f';
-			spriteType += 'f';
 		}
 
 		// There is no entry or enough data in pokedex-mini.js
@@ -1203,16 +1230,13 @@ var Tools = {
 	},
 
 	getPokemonIcon: function (pokemon, facingLeft) {
-		return this.getIcon(pokemon, true, facingLeft);
-	},
-	getIcon: function (pokemon, newSize, facingLeft) {
 		var num = 0;
 		if (pokemon === 'pokeball') {
-			return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-pokeball-sheet.png) no-repeat scroll -0px -8px';
+			return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/smicons-pokeball-sheet.png) no-repeat scroll -0px 4px';
 		} else if (pokemon === 'pokeball-statused') {
-			return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-pokeball-sheet.png) no-repeat scroll -32px -8px';
+			return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/smicons-pokeball-sheet.png) no-repeat scroll -40px 4px';
 		} else if (pokemon === 'pokeball-none') {
-			return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/bwicons-pokeball-sheet.png) no-repeat scroll -64px -8px';
+			return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/smicons-pokeball-sheet.png) no-repeat scroll -80px 4px';
 		}
 		var id = toId(pokemon);
 		if (pokemon && pokemon.species) id = toId(pokemon.species);
@@ -1221,354 +1245,325 @@ var Tools = {
 		else if (window.BattlePokemonSprites && BattlePokemonSprites[id] && BattlePokemonSprites[id].num) num = BattlePokemonSprites[id].num;
 		else if (window.BattlePokedex && window.BattlePokedex[id] && BattlePokedex[id].num) num = BattlePokedex[id].num;
 		if (num < 0) num = 0;
-		if (num > 721) num = 0;
+		if (num > 802) num = 0;
 		var altNums = {
-			"egg": 731,
-			"rotomfan": 779,
-			"rotomfrost": 780,
-			"rotomheat": 781,
-			"rotommow": 782,
-			"rotomwash": 783,
-			"giratinaorigin": 785,
-			"shayminsky": 787,
-			"basculinbluestriped": 789,
-			"darmanitanzen": 792,
-			"deoxysattack": 763,
-			"deoxysdefense": 764,
-			"deoxysspeed": 766,
-			"deerlingautumn": 793,
-			"deerlingsummer": 795,
-			"deerlingwinter": 796,
-			"sawsbuckautumn": 797,
-			"sawsbucksummer": 799,
-			"sawsbuckwinter": 800,
-			"burmysandy": 768,
-			"burmytrash": 769,
-			"wormadamsandy": 771,
-			"wormadamtrash": 772,
-			"cherrimsunshine": 774,
-			"shelloseast": 775,
-			"gastrodoneast": 777,
-			"castformrainy": 760,
-			"castformsnowy": 761,
-			"castformsunny": 762,
-			"meloettapirouette": 804,
-			"meowsticf": 809,
-			"floetteeternal": 810,
-			"tornadustherian": 816,
-			"thundurustherian": 817,
-			"landorustherian": 818,
-			"kyuremblack": 819,
-			"kyuremwhite": 820,
-			"keldeoresolute": 821,
-			"venusaurmega": 864,
-			"charizardmegax": 865,
-			"charizardmegay": 866,
-			"blastoisemega": 867,
-			"alakazammega": 868,
-			"gengarmega": 869,
-			"kangaskhanmega": 870,
-			"pinsirmega": 871,
-			"gyaradosmega": 872,
-			"aerodactylmega": 873,
-			"mewtwomegax": 874,
-			"mewtwomegay": 875,
-			"ampharosmega": 876,
-			"scizormega": 877,
-			"heracrossmega": 878,
-			"houndoommega": 879,
-			"tyranitarmega": 880,
-			"blazikenmega": 881,
-			"gardevoirmega": 882,
-			"mawilemega": 883,
-			"aggronmega": 884,
-			"medichammega": 885,
-			"manectricmega": 886,
-			"banettemega": 887,
-			"absolmega": 888,
-			"garchompmega": 889,
-			"lucariomega": 890,
-			"abomasnowmega": 891,
-			"latiasmega": 892,
-			"latiosmega": 893,
-			"beedrillmega": 896,
-			"pidgeotmega": 897,
-			"slowbromega": 898,
-			"steelixmega": 899,
-			"sceptilemega": 900,
-			"swampertmega": 901,
-			"sableyemega": 902,
-			"sharpedomega": 903,
-			"cameruptmega": 904,
-			"altariamega": 905,
-			"glaliemega": 906,
-			"salamencemega": 907,
-			"metagrossmega": 908,
-			"kyogreprimal": 909,
-			"groudonprimal": 910,
-			"rayquazamega": 911,
-			"lopunnymega": 912,
-			"gallademega": 913,
-			"audinomega": 914,
-			"dianciemega": 915,
-			"hoopaunbound": 916,
-			"syclant": 832 + 0,
-			"revenankh": 832 + 1,
-			"pyroak": 832 + 2,
-			"fidgit": 832 + 3,
-			"stratagem": 832 + 4,
-			"arghonaut": 832 + 5,
-			"kitsunoh": 832 + 6,
-			"cyclohm": 832 + 7,
-			"colossoil": 832 + 8,
-			"krilowatt": 832 + 9,
-			"voodoom": 832 + 10,
-			"tomohawk": 832 + 11,
-			"necturna": 832 + 12,
-			"mollux": 832 + 13,
-			"aurumoth": 832 + 14,
-			"malaconda": 832 + 15,
-			"cawmodore": 832 + 16,
-			"volkraken": 832 + 17,
-			"plasmanta": 832 + 18,
-			"naviathan": 832 + 19,
-			"crucibelle": 832 + 20,
-			"crucibellemega": 832 + 21
+			egg: 804 + 1,
+			pikachubelle: 804 + 2,
+			pikachulibre: 804 + 3,
+			pikachuphd: 804 + 4,
+			pikachupopstar: 804 + 5,
+			pikachurockstar: 804 + 6,
+			pikachucosplay: 804 + 7,
+			castformrainy: 804 + 35,
+			castformsnowy: 804 + 36,
+			castformsunny: 804 + 37,
+			deoxysattack: 804 + 38,
+			deoxysdefense: 804 + 39,
+			deoxysspeed: 804 + 40,
+			burmysandy: 804 + 41,
+			burmytrash: 804 + 42,
+			wormadamsandy: 804 + 43,
+			wormadamtrash: 804 + 44,
+			cherrimsunshine: 804 + 45,
+			shelloseast: 804 + 46,
+			gastrodoneast: 804 + 47,
+			rotomfan: 804 + 48,
+			rotomfrost: 804 + 49,
+			rotomheat: 804 + 50,
+			rotommow: 804 + 51,
+			rotomwash: 804 + 52,
+			giratinaorigin: 804 + 53,
+			shayminsky: 804 + 54,
+			unfezantf: 804 + 55,
+			basculinbluestriped: 804 + 56,
+			darmanitanzen: 804 + 57,
+			deerlingautumn: 804 + 58,
+			deerlingsummer: 804 + 59,
+			deerlingwinter: 804 + 60,
+			sawsbuckautumn: 804 + 61,
+			sawsbucksummer: 804 + 62,
+			sawsbuckwinter: 804 + 63,
+			frillishf: 804 + 64,
+			jellicentf: 804 + 65,
+			tornadustherian: 804 + 66,
+			thundurustherian: 804 + 67,
+			landorustherian: 804 + 68,
+			kyuremblack: 804 + 69,
+			kyuremwhite: 804 + 70,
+			keldeoresolute: 804 + 71,
+			meloettapirouette: 804 + 72,
+			vivillonarchipelago: 804 + 73,
+			vivilloncontinental: 804 + 74,
+			vivillonelegant: 804 + 75,
+			vivillonfancy: 804 + 76,
+			vivillongarden: 804 + 77,
+			vivillonhighplains: 804 + 78,
+			vivillonicysnow: 804 + 79,
+			vivillonjungle: 804 + 80,
+			vivillonmarine: 804 + 81,
+			vivillonmodern: 804 + 82,
+			vivillonmonsoon: 804 + 83,
+			vivillonocean: 804 + 84,
+			vivillonpokeball: 804 + 85,
+			vivillonpolar: 804 + 86,
+			vivillonriver: 804 + 87,
+			vivillonsandstorm: 804 + 88,
+			vivillonsavanna: 804 + 89,
+			vivillonsun: 804 + 90,
+			vivillontundra: 804 + 91,
+			pyroarf: 804 + 92,
+			flabebeblue: 804 + 93,
+			flabebeorange: 804 + 94,
+			flabebewhite: 804 + 95,
+			flabebeyellow: 804 + 96,
+			floetteblue: 804 + 97,
+			floetteeternal: 804 + 98,
+			floetteorange: 804 + 99,
+			floettewhite: 804 + 100,
+			floetteyellow: 804 + 101,
+			florgesblue: 804 + 102,
+			florgesorange: 804 + 103,
+			florgeswhite: 804 + 104,
+			florgesyellow: 804 + 105,
+			meowsticf: 804 + 115,
+			aegislashblade: 804 + 116,
+			hoopaunbound: 804 + 118,
+			rattataalola: 804 + 119,
+			raticatealola: 804 + 120,
+			raichualola: 804 + 121,
+			sandshrewalola: 804 + 122,
+			sandslashalola: 804 + 123,
+			vulpixalola: 804 + 124,
+			ninetalesalola: 804 + 125,
+			diglettalola: 804 + 126,
+			dugtrioalola: 804 + 127,
+			meowthalola: 804 + 128,
+			persianalola: 804 + 129,
+			geodudealola: 804 + 130,
+			graveleralola: 804 + 131,
+			golemalola: 804 + 132,
+			grimeralola: 804 + 133,
+			mukalola: 804 + 134,
+			exeggutoralola: 804 + 135,
+			marowakalola: 804 + 136,
+			greninjaash: 804 + 137,
+			zygarde10: 804 + 138,
+			zygardecomplete: 804 + 139,
+			oricoriopompom: 804 + 140,
+			oricoriopau: 804 + 141,
+			oricoriosensu: 804 + 142,
+			lycanrocmidnight: 804 + 143,
+			wishiwashischool: 804 + 144,
+			miniormeteor: 804 + 145,
+			miniororange: 804 + 146,
+			minioryellow: 804 + 147,
+			miniorgreen: 804 + 148,
+			miniorblue: 804 + 149,
+			miniorviolet: 804 + 150,
+			miniorindigo: 804 + 151,
+			magearnaoriginal: 804 + 152,
+			pikachuoriginal: 804 + 153,
+			pikachuhoenn: 804 + 154,
+			pikachusinnoh: 804 + 155,
+			pikachuunova: 804 + 156,
+			pikachukalos: 804 + 157,
+			pikachualola: 804 + 158,
+
+			venusaurmega: 972 + 0,
+			charizardmegax: 972 + 1,
+			charizardmegay: 972 + 2,
+			blastoisemega: 972 + 3,
+			beedrillmega: 972 + 4,
+			pidgeotmega: 972 + 5,
+			alakazammega: 972 + 6,
+			slowbromega: 972 + 7,
+			gengarmega: 972 + 8,
+			kangaskhanmega: 972 + 9,
+			pinsirmega: 972 + 10,
+			gyaradosmega: 972 + 11,
+			aerodactylmega: 972 + 12,
+			mewtwomegax: 972 + 13,
+			mewtwomegay: 972 + 14,
+			ampharosmega: 972 + 15,
+			steelixmega: 972 + 16,
+			scizormega: 972 + 17,
+			heracrossmega: 972 + 18,
+			houndoommega: 972 + 19,
+			tyranitarmega: 972 + 20,
+			sceptilemega: 972 + 21,
+			blazikenmega: 972 + 22,
+			swampertmega: 972 + 23,
+			gardevoirmega: 972 + 24,
+			sableyemega: 972 + 25,
+			mawilemega: 972 + 26,
+			aggronmega: 972 + 27,
+			medichammega: 972 + 28,
+			manectricmega: 972 + 29,
+			sharpedomega: 972 + 30,
+			cameruptmega: 972 + 31,
+			altariamega: 972 + 32,
+			banettemega: 972 + 33,
+			absolmega: 972 + 34,
+			glaliemega: 972 + 35,
+			salamencemega: 972 + 36,
+			metagrossmega: 972 + 37,
+			latiasmega: 972 + 38,
+			latiosmega: 972 + 39,
+			kyogreprimal: 972 + 40,
+			groudonprimal: 972 + 41,
+			rayquazamega: 972 + 42,
+			lopunnymega: 972 + 43,
+			garchompmega: 972 + 44,
+			lucariomega: 972 + 45,
+			abomasnowmega: 972 + 46,
+			gallademega: 972 + 47,
+			audinomega: 972 + 48,
+			dianciemega: 972 + 49,
+
+			syclant: 1140 + 0,
+			revenankh: 1140 + 1,
+			pyroak: 1140 + 2,
+			fidgit: 1140 + 3,
+			stratagem: 1140 + 4,
+			arghonaut: 1140 + 5,
+			kitsunoh: 1140 + 6,
+			cyclohm: 1140 + 7,
+			colossoil: 1140 + 8,
+			krilowatt: 1140 + 9,
+			voodoom: 1140 + 10,
+			tomohawk: 1140 + 11,
+			necturna: 1140 + 12,
+			mollux: 1140 + 13,
+			aurumoth: 1140 + 14,
+			malaconda: 1140 + 15,
+			cawmodore: 1140 + 16,
+			volkraken: 1140 + 17,
+			plasmanta: 1140 + 18,
+			naviathan: 1140 + 19,
+			crucibelle: 1140 + 20,
+			crucibellemega: 1140 + 21,
+			kerfluffle: 1140 + 22,
+
+			syclar: 1164 + 0,
+			embirch: 1164 + 1,
+			flarelm: 1164 + 2,
+			breezi: 1164 + 3,
+			scratchet: 1164 + 4,
+			necturine: 1164 + 5,
+			cupra: 1164 + 6,
+			argalis: 1164 + 7,
+			brattler: 1164 + 8,
+			cawdet: 1164 + 9,
+			volkritter: 1164 + 10,
+			snugglow: 1164 + 11,
+			floatoy: 1164 + 12,
+			caimanoe: 1164 + 13,
+			pluffle: 1164 + 14
 		};
 
 		if (altNums[id]) {
 			num = altNums[id];
 		}
-		var newAltNums = {
-			pikachubelle: 732 + 2,
-			pikachulibre: 732 + 3,
-			pikachuphd: 732 + 4,
-			pikachupopstar: 732 + 5,
-			pikachurockstar: 732 + 6,
-			pikachucosplay: 732 + 7,
-			castformrainy: 732 + 35,
-			castformsnowy: 732 + 36,
-			castformsunny: 732 + 37,
-			deoxysattack: 732 + 38,
-			deoxysdefense: 732 + 39,
-			deoxysspeed: 732 + 40,
-			burmysandy: 732 + 41,
-			burmytrash: 732 + 42,
-			wormadamsandy: 732 + 43,
-			wormadamtrash: 732 + 44,
-			cherrimsunshine: 732 + 45,
-			shelloseast: 732 + 46,
-			gastrodoneast: 732 + 47,
-			rotomfan: 732 + 48,
-			rotomfrost: 732 + 49,
-			rotomheat: 732 + 50,
-			rotommow: 732 + 51,
-			rotomwash: 732 + 52,
-			giratinaorigin: 732 + 53,
-			shayminsky: 732 + 54,
-			unfezantf: 732 + 55,
-			basculinbluestriped: 732 + 56,
-			darmanitanzen: 732 + 57,
-			deerlingautumn: 732 + 58,
-			deerlingsummer: 732 + 59,
-			deerlingwinter: 732 + 60,
-			sawsbuckautumn: 732 + 61,
-			sawsbucksummer: 732 + 62,
-			sawsbuckwinter: 732 + 63,
-			frillishf: 732 + 64,
-			jellicentf: 732 + 65,
-			tornadustherian: 732 + 66,
-			thundurustherian: 732 + 67,
-			landorustherian: 732 + 68,
-			kyuremblack: 732 + 69,
-			kyuremwhite: 732 + 70,
-			keldeoresolute: 732 + 71,
-			meloettapirouette: 732 + 72,
-			vivillonarchipelago: 732 + 73,
-			vivilloncontinental: 732 + 74,
-			vivillonelegant: 732 + 75,
-			vivillonfancy: 732 + 76,
-			vivillongarden: 732 + 77,
-			vivillonhighplains: 732 + 78,
-			vivillonicysnow: 732 + 79,
-			vivillonjungle: 732 + 80,
-			vivillonmarine: 732 + 81,
-			vivillonmodern: 732 + 82,
-			vivillonmonsoon: 732 + 83,
-			vivillonocean: 732 + 84,
-			vivillonpokeball: 732 + 85,
-			vivillonpolar: 732 + 86,
-			vivillonriver: 732 + 87,
-			vivillonsandstorm: 732 + 88,
-			vivillonsavanna: 732 + 89,
-			vivillonsun: 732 + 90,
-			vivillontundra: 732 + 91,
-			pyroarf: 732 + 92,
-			flabebeblue: 732 + 93,
-			flabebeorange: 732 + 94,
-			flabebewhite: 732 + 95,
-			flabebeyellow: 732 + 96,
-			floetteblue: 732 + 97,
-			floetteeternal: 732 + 98,
-			floetteorange: 732 + 99,
-			floettewhite: 732 + 100,
-			floetteyellow: 732 + 101,
-			florgesblue: 732 + 102,
-			florgesorange: 732 + 103,
-			florgeswhite: 732 + 104,
-			florgesyellow: 732 + 105,
-			meowsticf: 732 + 115,
-			aegislashblade: 732 + 116,
-			hoopaunbound: 732 + 118,
-
-			venusaurmega: 852 + 0,
-			charizardmegax: 852 + 1,
-			charizardmegay: 852 + 2,
-			blastoisemega: 852 + 3,
-			beedrillmega: 852 + 4,
-			pidgeotmega: 852 + 5,
-			alakazammega: 852 + 6,
-			slowbromega: 852 + 7,
-			gengarmega: 852 + 8,
-			kangaskhanmega: 852 + 9,
-			pinsirmega: 852 + 10,
-			gyaradosmega: 852 + 11,
-			aerodactylmega: 852 + 12,
-			mewtwomegax: 852 + 13,
-			mewtwomegay: 852 + 14,
-			ampharosmega: 852 + 15,
-			steelixmega: 852 + 16,
-			scizormega: 852 + 17,
-			heracrossmega: 852 + 18,
-			houndoommega: 852 + 19,
-			tyranitarmega: 852 + 20,
-			sceptilemega: 852 + 21,
-			blazikenmega: 852 + 22,
-			swampertmega: 852 + 23,
-			gardevoirmega: 852 + 24,
-			sableyemega: 852 + 25,
-			mawilemega: 852 + 26,
-			aggronmega: 852 + 27,
-			medichammega: 852 + 28,
-			manectricmega: 852 + 29,
-			sharpedomega: 852 + 30,
-			cameruptmega: 852 + 31,
-			altariamega: 852 + 32,
-			banettemega: 852 + 33,
-			absolmega: 852 + 34,
-			glaliemega: 852 + 35,
-			salamencemega: 852 + 36,
-			metagrossmega: 852 + 37,
-			latiasmega: 852 + 38,
-			latiosmega: 852 + 39,
-			kyogreprimal: 852 + 40,
-			groudonprimal: 852 + 41,
-			rayquazamega: 852 + 42,
-			lopunnymega: 852 + 43,
-			garchompmega: 852 + 44,
-			lucariomega: 852 + 45,
-			abomasnowmega: 852 + 46,
-			gallademega: 852 + 47,
-			audinomega: 852 + 48,
-			dianciemega: 852 + 49
-		};
-		if (newSize) {
-			if (newAltNums[id]) num = newAltNums[id];
-			else if (num >= 832 && num < 864) num = num - 832 + 996; // CAP
-		}
 
 		if (pokemon && pokemon.gender === 'F') {
-			if (newSize) {
-				if (id === 'unfezant' || id === 'frillish' || id === 'jellicent' || id === 'meowstic' || id === 'pyroar') {
-					num = newAltNums[id + 'f'];
-				}
-			} else {
-				if (id === 'unfezant') num = 788;
-				else if (id === 'frillish') num = 801;
-				else if (id === 'jellicent') num = 802;
-				else if (id === 'meowstic') num = 809;
+			if (id === 'unfezant' || id === 'frillish' || id === 'jellicent' || id === 'meowstic' || id === 'pyroar') {
+				num = altNums[id + 'f'];
 			}
 		}
 
 		if (facingLeft) {
-			newAltNums = {
-				pikachubelle: 912 + 0,
-				pikachupopstar: 912 + 1,
-				clefairy: 912 + 2,
-				clefable: 912 + 3,
-				jigglypuff: 912 + 4,
-				wigglytuff: 912 + 5,
-				poliwhirl: 912 + 6,
-				poliwrath: 912 + 7,
-				kingler: 912 + 8,
-				croconaw: 912 + 9,
-				cleffa: 912 + 10,
-				igglybuff: 912 + 11,
-				politoed: 912 + 12,
+			altNums = {
+				pikachubelle: 1032 + 0,
+				pikachupopstar: 1032 + 1,
+				clefairy: 1032 + 2,
+				clefable: 1032 + 3,
+				jigglypuff: 1032 + 4,
+				wigglytuff: 1032 + 5,
+				dugtrioalola: 1032 + 6,
+				poliwhirl: 1032 + 7,
+				poliwrath: 1032 + 8,
+				mukalola: 1032 + 9,
+				kingler: 1032 + 10,
+				croconaw: 1032 + 11,
+				cleffa: 1032 + 12,
+				igglybuff: 1032 + 13,
+				politoed: 1032 + 14,
 				// unown gap
-				sneasel: 912 + 33,
-				teddiursa: 912 + 34,
-				roserade: 912 + 35,
-				zangoose: 912 + 36,
-				seviper: 912 + 37,
-				castformrainy: 912 + 38,
-				absolmega: 912 + 39,
-				absol: 912 + 40,
-				regirock: 912 + 41,
-				torterra: 912 + 42,
-				budew: 912 + 43,
-				roselia: 912 + 44,
-				magmortar: 912 + 45,
-				togekiss: 912 + 46,
-				rotomwash: 912 + 47,
-				shayminsky: 912 + 48,
-				emboar: 912 + 49,
-				pansear: 912 + 50,
-				simisear: 912 + 51,
-				drilbur: 912 + 52,
-				excadrill: 912 + 53,
-				sawk: 912 + 54,
-				lilligant: 912 + 55,
-				garbodor: 912 + 56,
-				solosis: 912 + 57,
-				vanilluxe: 912 + 58,
-				amoonguss: 912 + 59,
-				klink: 912 + 60,
-				klang: 912 + 61,
-				klinklang: 912 + 62,
-				litwick: 912 + 63,
-				golett: 912 + 64,
-				golurk: 912 + 65,
-				kyuremblack: 912 + 66,
-				kyuremwhite: 912 + 67,
-				kyurem: 912 + 68,
-				keldeoresolute: 912 + 69,
-				meloetta: 912 + 70,
-				greninja: 912 + 71,
-				// furfroudebutante: 912 + 72,
-				barbaracle: 912 + 73,
-				clauncher: 912 + 74,
-				clawitzer: 912 + 75,
-				sylveon: 912 + 76,
-				klefki: 912 + 77,
-				zygarde: 912 + 78
+				sneasel: 1032 + 35,
+				teddiursa: 1032 + 36,
+				roselia: 1032 + 37,
+				zangoose: 1032 + 38,
+				seviper: 1032 + 39,
+				castformrainy: 1032 + 40,
+				absolmega: 1032 + 41,
+				absol: 1032 + 42,
+				regirock: 1032 + 43,
+				torterra: 1032 + 44,
+				budew: 1032 + 45,
+				roserade: 1032 + 46,
+				magmortar: 1032 + 47,
+				togekiss: 1032 + 48,
+				rotomwash: 1032 + 49,
+				shayminsky: 1032 + 50,
+				emboar: 1032 + 51,
+				pansear: 1032 + 52,
+				simisear: 1032 + 53,
+				drilbur: 1032 + 54,
+				excadrill: 1032 + 55,
+				sawk: 1032 + 56,
+				lilligant: 1032 + 57,
+				garbodor: 1032 + 58,
+				solosis: 1032 + 59,
+				vanilluxe: 1032 + 60,
+				amoonguss: 1032 + 61,
+				klink: 1032 + 62,
+				klang: 1032 + 63,
+				klinklang: 1032 + 64,
+				litwick: 1032 + 65,
+				golett: 1032 + 66,
+				golurk: 1032 + 67,
+				kyuremblack: 1032 + 68,
+				kyuremwhite: 1032 + 69,
+				kyurem: 1032 + 70,
+				keldeoresolute: 1032 + 71,
+				meloetta: 1032 + 72,
+				greninja: 1032 + 73,
+				greninjaash: 1032 + 74,
+				// furfroudebutante: 1032 + 75,
+				barbaracle: 1032 + 76,
+				clauncher: 1032 + 77,
+				clawitzer: 1032 + 78,
+				sylveon: 1032 + 79,
+				klefki: 1032 + 80,
+				zygarde: 1032 + 81,
+				zygarde10: 1032 + 82,
+				zygardecomplete: 1032 + 83,
+				dartrix: 1032 + 84,
+				steenee: 1032 + 85,
+				tsareena: 1032 + 86,
+				comfey: 1032 + 87,
+				miniormeteor: 1032 + 88,
+				minior: 1032 + 89,
+				miniororange: 1032 + 90,
+				minioryellow: 1032 + 91,
+				miniorgreen: 1032 + 92,
+				miniorblue: 1032 + 93,
+				miniorviolet: 1032 + 94,
+				miniorindigo: 1032 + 95,
+				dhelmise: 1032 + 96,
+				necrozma: 1032 + 97,
+				marshadow: 1032 + 98,
+				pikachuoriginal: 1032 + 99
 			};
-			if (newAltNums[id]) {
-				num = newAltNums[id];
+			if (altNums[id]) {
+				num = altNums[id];
 			}
 		}
 
-		var top;
-		var left;
-		if (newSize) {
-			 top = Math.floor(num / 12) * 30;
-			 left = (num % 12) * 40;
-		} else {
-			 top = 8 + Math.floor(num / 16) * 32;
-			 left = (num % 16) * 32;
-		}
+		var top = Math.floor(num / 12) * 30;
+		var left = (num % 12) * 40;
 		var fainted = (pokemon && pokemon.fainted ? ';opacity:.4' : '');
-		return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/' + (newSize ? 'xyicons-sheet.png?a1' : 'bwicons-sheet.png?g6') + ') no-repeat scroll -' + left + 'px -' + top + 'px' + fainted;
+		return 'background:transparent url(' + Tools.resourcePrefix + 'sprites/smicons-sheet.png?a1) no-repeat scroll -' + left + 'px -' + top + 'px' + fainted;
 	},
 
 	getTeambuilderSprite: function (pokemon, gen) {
@@ -1599,14 +1594,16 @@ var Tools = {
 		// 	return 'background-image:url(' + Tools.resourcePrefix + 'sprites/bw' + shiny + '/' + spriteid + '.png);background-position:10px 5px;background-repeat:no-repeat';
 		// }
 		if (Tools.prefs('nopastgens')) gen = 6;
+		var spriteDir = Tools.resourcePrefix + 'sprites/xydex';
+		if (template.gen >= 7) spriteDir = Tools.resourcePrefix + 'sprites/bw';
 		if ((!gen || gen === 6) && !template.isNonstandard && !Tools.prefs('bwgfx')) {
 			var offset = '-2px -3px';
 			if (id.substr(0, 6) === 'arceus') offset = '-2px 7px';
 			if (id === 'garchomp') offset = '-2px 2px';
 			if (id === 'garchompmega') offset = '-2px 0px';
-			return 'background-image:url(' + Tools.resourcePrefix + 'sprites/xydex' + shiny + '/' + spriteid + '.png);background-position:' + offset + ';background-repeat:no-repeat';
+			return 'background-image:url(' + spriteDir + shiny + '/' + spriteid + '.png);background-position:' + offset + ';background-repeat:no-repeat';
 		}
-		var spriteDir = Tools.resourcePrefix + 'sprites/bw';
+		spriteDir = Tools.resourcePrefix + 'sprites/bw';
 		if (gen <= 1 && template.gen <= 1) spriteDir = Tools.resourcePrefix + 'sprites/rby';
 		else if (gen <= 2 && template.gen <= 2) spriteDir = Tools.resourcePrefix + 'sprites/gsc';
 		else if (gen <= 3 && template.gen <= 3) spriteDir = Tools.resourcePrefix + 'sprites/rse';

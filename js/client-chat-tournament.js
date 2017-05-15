@@ -54,7 +54,6 @@
 			top: position.top
 		});
 
-		var isMouseDown = false;
 		// Note: Origin starts from the top right instead of the top left here,
 		// because when a battle room is opened, the left side moves but the right doesn't,
 		// so we have to use the right side to keep the element in the same location.
@@ -64,11 +63,8 @@
 		$element.on('mousedown', function (e) {
 			innerX = e.pageX + ($element.parent().width() - $element.width() - this.offsetLeft);
 			innerY = e.pageY - this.offsetTop;
-			isMouseDown = true;
-		});
 
-		$(document).on('mousemove', function (e) {
-			if (isMouseDown) {
+			function mouseMoveCallback(e) {
 				position.right = innerX - e.pageX;
 				position.top = e.pageY - innerY;
 				delete position.isDefault;
@@ -78,8 +74,10 @@
 					top: position.top
 				});
 			}
-		}).on('mouseup', function () {
-			isMouseDown = false;
+			$(document).on('mousemove', mouseMoveCallback)
+			.one('mouseup', function () {
+				$(document).off('mousemove', mouseMoveCallback);
+			});
 		});
 	}
 
@@ -435,7 +433,8 @@
 					break;
 
 				case 'battlestart':
-					this.room.$chat.append('<div class="notice tournament-message-battlestart"><a href="' + app.root + toRoomid(data[2]).toLowerCase() + '" class="ilink">' +
+					var roomid = toRoomid(data[2]).toLowerCase();
+					this.room.$chat.append('<div class="notice tournament-message-battlestart tournament-' + roomid + '"><a href="' + app.root + roomid + '" class="ilink">' +
 						"Tournament battle between " + Tools.escapeHTML(data[0]) + " and " + Tools.escapeHTML(data[1]) + " started." +
 						'</a></div>');
 					break;
@@ -446,10 +445,14 @@
 						result = "won";
 					else if (data[2] === 'loss')
 						result = "lost";
-					this.room.$chat.append('<div class="notice tournament-message-battleend">' +
-						Tools.escapeHTML(data[0]) + " has " + result + " the match " + Tools.escapeHTML(data[3].split(',').join(' - ')) + " against " + Tools.escapeHTML(data[1]) +
-						(data[4] ? " but the tournament does not support drawing, so it did not count" : "") +
-						'</div>');
+					var message = Tools.escapeHTML(data[0]) + " has " + result + " the match " + Tools.escapeHTML(data[3].split(',').join(' - ')) + " against " + Tools.escapeHTML(data[1]) +
+						(data[4] === 'fail' ? " but the tournament does not support drawing, so it did not count" : "") + ".";
+					var $battleMessage = data[5] ? this.room.$chat.find('.tournament-' + toRoomid(data[5]).toLowerCase()) : '';
+					if ($battleMessage && $battleMessage.length) {
+						$battleMessage.removeClass('tournament-message-battlestart').addClass('tournament-message-battleend').find('a').html(message);
+					} else {
+						this.room.$chat.append('<div class="notice tournament-message-battleend">' + message + '</div>');
+					}
 					break;
 
 				case 'end':
@@ -494,7 +497,7 @@
 
 				case 'error':
 					var appendError = function (message) {
-						this.room.$chat.append("<div class=\"notice tournament-message-forceend\">" + message + "</div>");
+						this.room.$chat.append("<div class=\"notice tournament-message-forceend\">" + Tools.sanitizeHTML(message) + "</div>");
 					}.bind(this);
 
 					switch (data[0]) {
@@ -517,7 +520,7 @@
 						break;
 
 					case 'UserNotAdded':
-						appendError("You aren't in the tournament.");
+						appendError((data[1] && data[1] === app.user.get('userid') ? "You aren't" : "This user isn't") + " in the tournament.");
 						break;
 
 					case 'NotEnoughUsers':
@@ -542,7 +545,11 @@
 						break;
 
 					case 'AlreadyDisqualified':
-						appendError("This user has already been disqualified.");
+						appendError((data[1] && data[1] === app.user.get('userid') ? "You have" : "This user has") + " already been disqualified.");
+						break;
+
+					case 'Banned':
+						appendError("You are banned from entering tournaments.");
 						break;
 
 					default:

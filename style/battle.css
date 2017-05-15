@@ -319,8 +319,8 @@ License: GPLv2
 	background: transparent none no-repeat scroll center top;
 }
 .trainer div.teamicons {
-	width: 97px;
-	height: 24px;
+	width: 96px;
+	height: 30px;
 }
 .teamicons span {
 	float: left;
@@ -364,14 +364,14 @@ License: GPLv2
 	padding: 4px 6px 0 6px;
 	overflow: hidden;
 }
-.message strong {
+.messagebar strong {
 	color: #ffffff;
 	font-size: 12pt;
 }
-.message small {
+.messagebar small {
 	font-size: 8pt;
 }
-.message p {
+.messagebar p {
 	display: none;
 	margin: 0;
 	padding: 0;
@@ -471,7 +471,12 @@ License: GPLv2
 	border-radius: 0;
 	padding: 2px 6px;
 }
-
+.sidecondition-auroraveil {
+	background: #88EEFF;
+	border: 1px solid #55BBCC;
+	display: none;
+	position: absolute;
+}
 .sidecondition-reflect {
 	background: #EEEEEE;
 	border: 1px solid #888888;
@@ -625,8 +630,9 @@ License: GPLv2
 	background: #333333;
 	color: #CCCCCC;
 }
-.dark .battle-log .chat strong,
-.dark .battle-log .chat em {
+.dark .battle-log .chat > strong, /* username, changed rating */
+.dark .battle-log .chat > em, /* user's chat message */
+.dark .battle-log .chat > q {
 	color: #8097BA;
 }
 .dark .battle-log h2 {
@@ -661,19 +667,19 @@ License: GPLv2
 	display: block;
 	width: 24px;
 	height: 24px;
-	image-rendering: pixelated;
-}
-.pokemonicon {
-	display: block;
-	width: 32px;
-	height: 24px;
-	image-rendering: pixelated;
 }
 .picon {
 	display: block;
 	width: 40px;
 	height: 30px;
+}
+.trainer .picon {
+	margin: 0 -4px;
+}
+.pixelated, .itemicon, .picon {
+	image-rendering: -moz-crisp-edges;
 	image-rendering: pixelated;
+	-ms-interpolation-mode: nearest-neighbor;
 }
 
 /*********************************************************
@@ -700,13 +706,18 @@ License: GPLv2
 	padding-left: 8px;
 	padding-right: 8px;
 }
-.battle-log .chat strong {
+.battle-log .chat > strong { /* username, changed rating */
 	color: #40576A;
 }
-.battle-log .chat em {
+.battle-log .chat > em,
+.battle-log .chat > q { /* user's chat message */
 	padding: 1px 4px 1px 3px;
 	color: #000000;
 	font-style: normal;
+}
+.battle-log .chat > q:before,
+.battle-log .chat > q:after {
+	content: '';
 }
 .chat.mine {
 	background: rgba(0,0,0,0.05);
@@ -787,6 +798,13 @@ License: GPLv2
 	border-color: #555;
 	background: #333;
 	color: #DDD;
+}
+.stat-boosted {
+	color: #119911;
+}
+.stat-lowered {
+	color: #991111;
+	font-weight: normal;
 }
 .battle-log .rated {
 	padding: 3px 4px;
@@ -883,7 +901,7 @@ License: GPLv2
 }
 a.subtle {
 	text-decoration: none;
-	color: black;
+	color: inherit;
 }
 a.subtle:hover {
 	text-decoration: underline;
@@ -904,4 +922,13 @@ button.subtle {
 }
 button.subtle:hover {
 	text-decoration: underline;
+}
+.hidenicks span.battle-nickname,
+.hidenicks span.battle-nickname-foe {
+	font-size: 0;
+}
+.hidenicks span.battle-nickname::before,
+.hidenicks span.battle-nickname-foe::before{
+	content: attr(title);
+	font-size: 9pt;
 }

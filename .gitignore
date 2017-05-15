@@ -3,12 +3,11 @@
 /audio/
 phpmyadmin
 /js/config.js
+/config/
 /index.php
 /index.html
 /data/*
 !/data/graphics.js
-!/data/pokedex-mini.js
-!/data/pokedex-mini-bw.js
 !/data/learnsets-g6.js
 node_modules/
 eslint-cache/

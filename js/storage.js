@@ -3,7 +3,7 @@ Config.origindomain = 'play.pokemonshowdown.com';
 // address bar is `Config.origindomain`.
 Config.defaultserver = {
 	id: 'showdown',
-	host: 'sim.psim.us',
+	host: 'sim2.psim.us',
 	port: 443,
 	httpport: 8000,
 	altport: 80,
@@ -215,7 +215,7 @@ Storage.prefs = function (prop, value, save) {
 	// set preference
 	if (value === null) {
 		delete this.prefs.data[prop];
-	} else if (this.prefs.data[prop] === value) {
+	} else if (this.prefs.data[prop] === value && typeof value !== 'object') {
 		return false; // no need to save
 	} else {
 		this.prefs.data[prop] = value;
@@ -383,6 +383,14 @@ Storage.onMessage = function ($e) {
 			// for whatever reason, Node-Webkit doesn't let us make remote
 			// Ajax requests or something. Oh well, making them direct
 			// isn't a problem, either.
+
+			try {
+				// I really hope this is a Chrome bug that this can fail
+				Storage.crossOriginFrame.postMessage("", Storage.origin);
+			} catch (e) {
+				return;
+			}
+
 			$.get = function (uri, data, callback, type) {
 				var idx = Storage.crossOriginRequestCount++;
 				Storage.crossOriginRequests[idx] = callback;
@@ -406,7 +414,19 @@ Storage.onMessage = function ($e) {
 	}
 };
 Storage.postCrossOriginMessage = function (data) {
-	return Storage.crossOriginFrame.postMessage(data, Storage.origin);
+	try {
+		// I really hope this is a Chrome bug that this can fail
+		return Storage.crossOriginFrame.postMessage(data, Storage.origin);
+	} catch (e) {
+		Storage.whenPrefsLoaded.load();
+		if (!Storage.whenTeamsLoaded.isLoaded) {
+			Storage.whenTeamsLoaded.isStalled = true;
+			if (window.app && app.rooms['teambuilder']) {
+				app.rooms['teambuilder'].updateTeamInterface();
+			}
+		}
+	}
+	return false;
 };
 
 // Test client
@@ -522,9 +542,11 @@ Storage.unpackAllTeams = function (buffer) {
 	if (buffer.charAt(0) === '[' && $.trim(buffer).indexOf('\n') < 0) {
 		// old format
 		return JSON.parse(buffer).map(function (oldTeam) {
+			var format = oldTeam.format || '';
+			if (format && format.slice(0, 3) !== 'gen') format = 'gen6' + format;
 			return {
 				name: oldTeam.name || '',
-				format: oldTeam.format || '',
+				format: format,
 				team: Storage.packTeam(oldTeam.team),
 				folder: '',
 				iconCache: ''
@@ -539,9 +561,11 @@ Storage.unpackAllTeams = function (buffer) {
 		if (bracketIndex > pipeIndex) bracketIndex = -1;
 		var slashIndex = line.lastIndexOf('/', pipeIndex);
 		if (slashIndex < 0) slashIndex = bracketIndex; // line.slice(slashIndex + 1, pipeIndex) will be ''
+		var format = bracketIndex > 0 ? line.slice(0, bracketIndex) : '';
+		if (format && format.slice(0, 3) !== 'gen') format = 'gen6' + format;
 		return {
 			name: line.slice(slashIndex + 1, pipeIndex),
-			format: bracketIndex > 0 ? line.slice(0, bracketIndex) : '',
+			format: format,
 			team: line.slice(pipeIndex + 1),
 			folder: line.slice(bracketIndex + 1, slashIndex > 0 ? slashIndex : bracketIndex + 1),
 			iconCache: ''
@@ -967,6 +991,7 @@ Storage.importTeam = function (text, teams) {
 			var bracketIndex = line.indexOf(']');
 			if (bracketIndex >= 0) {
 				format = line.substr(1, bracketIndex - 1);
+				if (format && format.slice(0, 3) !== 'gen') format = 'gen6' + format;
 				line = $.trim(line.substr(bracketIndex + 1));
 			}
 			if (teams.length) {
@@ -1026,9 +1051,6 @@ Storage.importTeam = function (text, teams) {
 		} else if (line.substr(0, 11) === 'Happiness: ') {
 			line = line.substr(11);
 			curSet.happiness = +line;
-		} else if (line.substr(0, 9) === 'Ability: ') {
-			line = line.substr(9);
-			curSet.ability = line;
 		} else if (line.substr(0, 5) === 'EVs: ') {
 			line = line.substr(5);
 			var evLines = line.split('/');
@@ -1094,6 +1116,18 @@ Storage.exportAllTeams = function () {
 		buf += '=== ' + (team.format ? '[' + team.format + '] ' : '') + (team.folder ? '' + team.folder + '/' : '') + team.name + ' ===\n\n';
 		buf += Storage.exportTeam(team.team);
 		buf += '\n';
+	}
+	return buf;
+};
+Storage.exportFolder = function (folder) {
+	var buf = '';
+	for (var i = 0, len = Storage.teams.length; i < len; i++) {
+		var team = Storage.teams[i];
+		if (team.folder + "/" === folder || team.format === folder) {
+			buf += '=== ' + (team.format ? '[' + team.format + '] ' : '') + (team.folder ? '' + team.folder + '/' : '') + team.name + ' ===\n\n';
+			buf += Storage.exportTeam(team.team);
+			buf += '\n';
+		}
 	}
 	return buf;
 };
@@ -1197,7 +1231,9 @@ Storage.exportTeam = function (team) {
 			if (move.substr(0, 13) === 'Hidden Power ') {
 				move = move.substr(0, 13) + '[' + move.substr(13) + ']';
 			}
-			text += '- ' + move + "  \n";
+			if (move) {
+				text += '- ' + move + "  \n";
+			}
 		}
 		text += "\n";
 	}
@@ -1337,6 +1373,7 @@ Storage.nwLoadTeamFile = function (filename, localApp) {
 		format = line.slice(1, bracketIndex);
 		line = $.trim(line.slice(bracketIndex + 1));
 	}
+	if (format && format.slice(0, 3) !== 'gen') format = 'gen6' + format;
 	fs.readFile(this.dir + 'Teams/' + filename, function (err, data) {
 		if (!err) {
 			self.teams.push({
